@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caca</title>
+  <style>
+    body { margin: 0; height: 100vh; overflow: hidden; cursor: crosshair; background: #000; }
+    body.glitch { animation: glitchAnim 0.2s; }
+    @keyframes glitchAnim {
+      0% { transform: none; filter: none; }
+      20% { transform: translate(-4px,4px) skewX(4deg); filter: hue-rotate(15deg); }
+      40% { transform: translate(4px,-4px) skewY(4deg); filter: hue-rotate(-15deg); }
+      60% { transform: translate(-4px,-4px) skewX(-4deg); filter: hue-rotate(8deg); }
+      80% { transform: translate(4px,4px) skewY(-4deg); filter: hue-rotate(-8deg); }
+      100% { transform: none; filter: none; }
+    }
+    #matrix { position: fixed; top:0; left:0; width:100%; height:100%; z-index:0; display:none; }
+    .poop { position:absolute; font-size:30px; user-select:none; pointer-events:none; z-index:1; }
+    .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1002; }
+    .window { background:#111; border:2px solid #0f0; color:#0f0; width:260px; height:140px; padding:8px; font-family:monospace; overflow:auto; box-shadow:0 0 10px #0f0; position:absolute; }
+    @keyframes flash { 0%{border-color:#0f0;} 50%{border-color:#f00;} 100%{border-color:#0f0;} }
+    .ghost { position:fixed; font-size:50px; top:80%; left:-50px; z-index:1003; opacity:0.7; transition:transform 3s linear; }
+    .error-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:#f00; color:#fff; font-family:monospace; font-size:2em; display:flex; align-items:center; justify-content:center; z-index:1004; opacity:0.9; }
+    .bsod { position:fixed; top:0; left:0; width:100%; height:100%; background:#0000AA; color:#FFFFFF; font-family:monospace; font-size:1.2em; padding:20px; white-space: pre-wrap; z-index:1005; display:none; }
+    #scan { position:fixed; top:20%; left:20%; width:60%; height:60%; background:rgba(255,0,0,0.2); mix-blend-mode:screen; display:none; z-index:1001; }
+    @keyframes spiral { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spiral { animation: spiral 1s linear; }
+    .vhs { background: repeating-linear-gradient(to bottom, transparent 0px, rgba(255,255,255,0.1) 1px, transparent 2px); animation: vhsAnim 0.05s infinite; }
+    @keyframes vhsAnim { from { background-position: 0 0; } to { background-position: 0 10px; } }
+  </style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+<div id="scan"></div>
+<div class="bsod" id="bsod">
+Un problème est survenu sur votre PC. Pour éviter tout dommage,
+veuillez redémarrer votre ordinateur.
+
+*** STOP: 0x0000007B (0xFFFFFA600000000, 0x0000000000000000, 0x0000000000000000)
+
+SI VOUS AVEZ BESOIN D'AIDE, CONTACTEZ LE SUPPORT.
+</div>
+<script>
+// Config et états
+const soundUrls = [
+  'https://actions.google.com/sounds/v1/alarms/beep_short.ogg',
+  'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg',
+  'https://actions.google.com/sounds/v1/foley/metal_scraping.ogg',
+  'https://actions.google.com/sounds/v1/alarms/winding_alarm_clock.ogg'
+];
+const whisperAudio = new Audio('https://actions.google.com/sounds/v1/human_voices/whisper_1.ogg'); whisperAudio.loop = true;
+let clicks = 0;
+let glitchInterval, flashInterval, titleInterval, cursorInterval, notifInterval, scanInterval, spiralInterval, vhsInterval;
+const scanOverlay = document.getElementById('scan');
+const messages = [
+  'Récupération de l\'adresse IP en cours...',
+  'Affichage de votre localisation GPS...',
+  'Scan des ports ouverts et vulnérabilités détectées...',
+  'Connexion à la webcam et prise de contrôle...',
+  'Activation du microphone pour espionnage...',
+  'Collecte de fichiers personnels...',
+  'Extraction de vos identifiants et mots de passe...',
+  'Exfiltration des données vers un serveur pirate...',
+  'Suppression furtive des logs de sécurité...',
+  'Installation silencieuse d\'un malware...',
+  'Déploiement d\'un ransomware et chiffrement des documents...',
+  'Demande de rançon affichée sur l\'écran...',
+  'Transfert des informations bancaires...',
+  'Localisation en temps réel activée... GPS: ********',
+  'Votre système est compromis à 100%.',
+  'Alerte de sécurité : intrusion détectée !',
+  'Alerte de sécurité : accès non autorisé !',
+  'Alerte de sécurité : tentative de piratage !',
+  'Alerte de sécurité : virus détecté !',
+  'Alerte de sécurité : logiciel espion détecté !',
+  'Alerte de sécurité : ransomware détecté !',
+  'Alerte de sécurité : phishing détecté !',
+  'Alerte de sécurité : malware détecté !',
+  'Alerte de sécurité : cheval de Troie détecté !',
+  'Alerte de sécurité : rootkit détecté !',
+  'Alerte de sécurité : botnet détecté !',
+  'Alerte de sécurité : keylogger détecté !',
+  'Alerte de sécurité : spyware détecté !',
+  'Alerte de sécurité : adware détecté !',    
+];
+
+document.addEventListener('click', e => {
+  new Audio(soundUrls[Math.floor(Math.random()*soundUrls.length)]).play();
+  const d = document.createElement('div'); d.className='poop'; d.textContent='💩';
+  d.style.left=(e.pageX-15)+'px'; d.style.top=(e.pageY-15)+'px'; document.body.appendChild(d);
+  if (++clicks === 10) launchHack();
+});
+
+function startMatrix() {
+  const c = document.getElementById('matrix'), ctx = c.getContext('2d');
+  let w,h,cols,drops;
+  function resize() { w=innerWidth; h=innerHeight; c.width=w; c.height=h; cols=Math.floor(w/16); drops=Array(cols).fill(h/16); }
+  window.onresize = resize; resize();
+  setInterval(() => {
+    ctx.fillStyle='rgba(0,0,0,0.05)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#0F0'; ctx.font='16px monospace';
+    drops.forEach((y,i)=>{ const txt='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%'; ctx.fillText(txt.charAt(Math.random()*txt.length), i*16, y*16);
+      drops[i] = y*16>h && Math.random()>0.975 ? 0 : y+1;
+    });
+  },25);
+}
+
+function glitchEffect(){ document.body.classList.add('glitch'); setTimeout(()=>document.body.classList.remove('glitch'),200); }
+function flashScreen(){ const fs=document.createElement('div'); fs.className='error-screen'; fs.textContent='>> SYSTEM CRITICAL ERROR <<'; document.body.appendChild(fs); setTimeout(()=>fs.remove(),400); }
+function spiralEffect(){ document.body.classList.add('spiral'); setTimeout(()=>document.body.classList.remove('spiral'),1000); }
+function vhsEffect(){ document.body.classList.add('vhs'); setTimeout(()=>document.body.classList.remove('vhs'),500); }
+function showBSOD(){ clearAll(); document.getElementById('bsod').style.display='block'; }
+function clearAll(){ [glitchInterval, flashInterval, titleInterval, cursorInterval, notifInterval, scanInterval, spiralInterval, vhsInterval].forEach(id=>clearInterval(id)); }
+
+function launchHack(){
+  whisperAudio.play();
+  document.documentElement.requestFullscreen?.();
+  document.body.style.cursor='progress';
+  startMatrix();
+  glitchInterval = setInterval(glitchEffect,600);
+  flashInterval = setInterval(flashScreen,2000);
+
+  // Titre ultra-rapide
+  const titles = ['⚠️DANGER','ERROR','INTRUSION','MALWARE','POISSON','AVRIL','HACKER','ALERTE','ALERTE INTRUSION','SYSTEM FAILURE','CRITICAL ERROR','DANGER IMMINENT'];
+  let ti=0;
+  titleInterval = setInterval(()=>{ document.title=titles[ti++%titles.length]; },100);
+
+  // Curseur bug rapide
+  let ct=false;
+  cursorInterval = setInterval(()=>{ document.body.style.cursor=ct?'wait':'crosshair'; ct=!ct; },300);
+
+  // Notifications fantômes (facultatif)
+  if(Notification && Notification.requestPermission){
+    Notification.requestPermission().then(p=>{ if(p==='granted') notifInterval=setInterval(()=>new Notification('Erreur système',{body:'Intrusion détectée !'}),2000); });
+  }
+
+  // Scan visage rapide
+  scanInterval = setInterval(()=>{ scanOverlay.style.display='block'; setTimeout(()=>scanOverlay.style.display='none',150); },1500);
+
+  // Effets spirale & VHS plus rapides
+  spiralInterval = setInterval(spiralEffect,3000);
+  vhsInterval    = setInterval(vhsEffect,2000);
+
+  // Fantôme plus rapide
+  const ghost=document.createElement('div'); ghost.className='ghost'; ghost.textContent='👻'; document.body.appendChild(ghost);
+  setTimeout(()=>ghost.style.transform=`translate(${innerWidth+100}px,-${innerHeight/2}px)`,250);
+
+  // Fenêtres hacker
+  const ov=document.createElement('div'); ov.className='overlay'; document.body.appendChild(ov);
+  fetch('https://ipapi.co/json/').then(r=>r.json()).then(d=>{
+    messages.unshift(`IP détectée : ${d.ip}`);
+    messages.splice(1,0,`Position approximative : ${d.city}, ${d.region}, ${d.country_name}`);
+    messages.forEach((m,i)=>setTimeout(()=>{
+      const w=document.createElement('div'); w.className='window'; w.textContent=m;
+      w.style.left=Math.random()*(innerWidth-280)+'px'; w.style.top=Math.random()*(innerHeight-160)+'px';
+      ov.appendChild(w); w.style.animation='flash 0.5s ease-in-out';
+    }, i*150));
+    setTimeout(showBSOD, messages.length*150+1000);
+  }).catch(()=>{ messages.unshift('Récupération de l\'IP impossible'); /* similar display */ });
+}
+</script>
+</body>
+</html>
